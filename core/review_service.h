@@ -3,10 +3,11 @@
 
 class ReviewService {
 private:
-    Scheduler scheduler;
+    Scheduler& scheduler;
 
 public:
-    ReviewService() = default;
+    ReviewService(Scheduler& schedulerRef) 
+        : scheduler(schedulerRef) {};
 
     void create_user(UserId uid);
 

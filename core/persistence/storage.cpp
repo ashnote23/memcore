@@ -65,6 +65,8 @@ void Storage::save_snapshot(const std::unordered_map<UserId, User>& users)
             snapShot.write(reinterpret_cast<const char*>(&card.nextReviewDate), sizeof(card.nextReviewDate));
         }
     }
+    // clear the log after snapshot
+    std::ofstream clearLog(log_path, std::ios::trunc);
 }
 
 void Storage::load_snapshot(Scheduler& scheduler)

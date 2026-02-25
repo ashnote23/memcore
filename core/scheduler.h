@@ -15,6 +15,8 @@ public:
 
     bool user_exists(UserId uid) const;
 
+    const std::unordered_map<UserId, User>& get_users() const;
+
     bool card_exists(UserId uid, CardId cid) const;
 
     bool topic_exists(UserId uid, TopicId tid) const;

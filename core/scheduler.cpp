@@ -13,6 +13,10 @@ bool Scheduler::user_exists(UserId uid) const {
     return users.find(uid) != users.end();
 }
 
+const std::unordered_map<UserId, User>& Scheduler::get_users() const {
+    return users;
+}
+
 bool Scheduler::card_exists(UserId uid, CardId cid) const {
     auto userIt = users.find(uid);
     if (userIt == users.end())

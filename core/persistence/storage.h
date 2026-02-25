@@ -1,5 +1,5 @@
 #pragma once
-#include "scheduler.h"
+#include "../scheduler.h"
 #include <string>
 #include<unordered_map>
 
@@ -18,4 +18,6 @@ public:
     void append_log(UserId uid, CardId cid, int rating, int timestamp);
 
     void replay_log(Scheduler& scheduler);
+    
+    void clear_log();
 };
