@@ -13,6 +13,8 @@ public:
 
     bool user_exists(UserId uid);
 
+    Card get_card(UserId uid, CardId cid);
+
     void create_topic(UserId uid, TopicId tid, const std::string& name);
 
     void add_card(UserId uid, CardId cid, TopicId tid);

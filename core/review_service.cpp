@@ -13,6 +13,12 @@ bool ReviewService::user_exists(UserId uid)
     return scheduler.user_exists(uid);
 }
 
+Card ReviewService::get_card(UserId uid, CardId cid)
+{
+    const auto& users = scheduler.get_users();
+    return users.at(uid).cards.at(cid);
+}
+
 void ReviewService::create_topic(UserId uid, TopicId tid, const std::string& name)
 {
     Topic topic;

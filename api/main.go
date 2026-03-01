@@ -1,9 +1,18 @@
 package main
 
 import (
-    "encoding/json"
+	"encoding/json"
     "net/http"
+	"log"
+	"context"
+    "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	pb "memcore/api/proto"
 )
+
+type Server struct {
+	client pb.FlashcardServiceClient
+}
 
 type ReviewRequest struct {
     UserId int `json:"user_id"`
@@ -47,20 +56,34 @@ type CreateTopicResponse struct {
 
 
 // 1. A handler function — processes one type of request
-func handleReview(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReview(w http.ResponseWriter, r *http.Request) {
     if r.Method == "POST" {
 		// read request, do work, write response
 		var req ReviewRequest
 		json.NewDecoder(r.Body).Decode(&req)// now req.UserId, req.CardId, req.Rating are populated
 
+		grpcReq := &pb.ReviewCompleteRequest{
+            UserId: int32(req.UserId),
+            CardId: int32(req.CardId),
+            Rating: int32(req.Rating),
+        }
+
+		grpcRes, err := s.client.ReviewComplete(context.Background(), grpcReq)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ReviewResponse{NextReviewDate: 42})
+		json.NewEncoder(w).Encode(ReviewResponse{
+			NextReviewDate: int(grpcRes.NextReviewDate),
+		})
 	} else {
 		return
 	}
 }
 
-func handleAddCard(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleAddCard(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		var add AddCardRequest
 		json.NewDecoder(r.Body).Decode(&add)
@@ -72,7 +95,7 @@ func handleAddCard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleGetDueCards(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGetDueCards(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		var dueCard GetDueCardsRequest
 		json.NewDecoder(r.Body).Decode(&dueCard)
@@ -84,7 +107,7 @@ func handleGetDueCards(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleCreateTopic(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreateTopic(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		var topic CreateTopicRequest
 		json.NewDecoder(r.Body).Decode(&topic)
@@ -97,10 +120,19 @@ func handleCreateTopic(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/review", handleReview)
-	http.HandleFunc("/card", handleAddCard)
-	http.HandleFunc("/due-cards", handleGetDueCards)
-	http.HandleFunc("/topic", handleCreateTopic)
+
+	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+    if err != nil {
+        log.Fatalf("Failed to connect: %v", err)
+    }
+    defer conn.Close()
+
+	client := pb.NewFlashcardServiceClient(conn)
+	server := &Server{client: client}
+	http.HandleFunc("/review", server.handleReview)
+	http.HandleFunc("/card", server.handleAddCard)
+	http.HandleFunc("/due-cards", server.handleGetDueCards)
+	http.HandleFunc("/topic", server.handleCreateTopic)
 	http.ListenAndServe(":8080", nil)
 }
 
