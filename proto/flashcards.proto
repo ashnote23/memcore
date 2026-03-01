@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package flashcards;
 
+option go_package = "memcore/api/proto";
+
 // Message definitions
 message CreateTopicRequest {
     int32 user_id = 1;
@@ -30,7 +32,7 @@ message AddCardRequest {
 }
 
 message AddCardResponse {
-
+    bool success = 1;
 }
 
 message GetDueCardsRequest {
@@ -50,6 +52,5 @@ service FlashcardService {
     rpc AddCard(AddCardRequest) returns (AddCardResponse);
     rpc GetDueCards(GetDueCardsRequest) returns (GetDueCardsResponse);
 }
-
 
 

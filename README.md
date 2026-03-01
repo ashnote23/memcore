@@ -137,15 +137,36 @@ Key decisions documented:
 
 ## Build & Run
 
-```bash
-# Compile
-g++ -std=c++17 main.cpp core/scheduler.cpp core/review_service.cpp core/persistence/storage.cpp -o memcore
+### Prerequisites
+- Visual Studio 2022 Build Tools with C++ desktop development
+- CMake 3.15+
+- vcpkg with gRPC installed:
+```
+  git clone https://github.com/Microsoft/vcpkg.git
+  cd vcpkg
+  ./bootstrap-vcpkg.bat
+  ./vcpkg.exe install grpc
+```
+- Go 1.21+
+- protoc with Go and C++ plugins
 
-# Run simulation
-./memcore
+### Build C++ Engine
+```powershell
+mkdir build
+cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build .
 ```
 
-> Go API layer and gRPC wiring are in progress.
+### Run
+```powershell
+# Terminal 1 - C++ engine
+./build/Debug/memcore.exe
+
+# Terminal 2 - Go API
+cd api
+go run main.go
+```
 
 ---
 

@@ -4,6 +4,8 @@
 #include "core/review_service.h"
 #include <filesystem>
 #include <ctime>
+#include "core/grpc_server.cpp"
+#include <grpcpp/grpcpp.h>
   
 int main() {
 
@@ -80,7 +82,16 @@ int main() {
             //Move to Next Day
             currentDay++;
         }
-
         storage.save_snapshot(scheduler.get_users());
+        // Start gRPC server
+        grpc::ServerBuilder builder;
+        builder.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
+
+        FlashcardServiceImpl service(reviewService);
+        builder.RegisterService(&service);
+
+        std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+        std::cout << "gRPC server listening on port 50051\n";
+        server->Wait();
     return 0;
 }
