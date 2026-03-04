@@ -292,6 +292,7 @@ func (x *AddCardRequest) GetTopicId() int32 {
 
 type AddCardResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -324,6 +325,13 @@ func (x *AddCardResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AddCardResponse.ProtoReflect.Descriptor instead.
 func (*AddCardResponse) Descriptor() ([]byte, []int) {
 	return file_proto_flashcards_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AddCardResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
 }
 
 type GetDueCardsRequest struct {
@@ -451,8 +459,9 @@ const file_proto_flashcards_proto_rawDesc = "" +
 	"\x0eAddCardRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x05R\x06userId\x12\x17\n" +
 	"\acard_id\x18\x02 \x01(\x05R\x06cardId\x12\x19\n" +
-	"\btopic_id\x18\x03 \x01(\x05R\atopicId\"\x11\n" +
-	"\x0fAddCardResponse\"\\\n" +
+	"\btopic_id\x18\x03 \x01(\x05R\atopicId\"+\n" +
+	"\x0fAddCardResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\\\n" +
 	"\x12GetDueCardsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x05R\x06userId\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\x05R\x04date\x12\x19\n" +

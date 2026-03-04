@@ -88,8 +88,22 @@ func (s *Server) handleAddCard(w http.ResponseWriter, r *http.Request) {
 		var add AddCardRequest
 		json.NewDecoder(r.Body).Decode(&add)
 
+		grpcReq := &pb.AddCardRequest{
+            UserId: int32(add.UserId),
+            CardId: int32(add.CardId),
+            TopicId: int32(add.TopicId),
+        }
+
+		grpcRes, err := s.client.AddCard(context.Background(), grpcReq)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(AddCardResponse{Success: true})
+		json.NewEncoder(w).Encode(AddCardResponse{
+			Success: grpcRes.Success,
+		})
 	} else {
 		return
 	}
@@ -99,9 +113,27 @@ func (s *Server) handleGetDueCards(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		var dueCard GetDueCardsRequest
 		json.NewDecoder(r.Body).Decode(&dueCard)
+
+		grpcReq := &pb.GetDueCardsRequest{
+            UserId: int32(dueCard.UserId),
+            Date: int32(dueCard.Date),
+            TopicId: int32(dueCard.TopicId),
+        }
+
+		grpcRes, err := s.client.GetDueCards(context.Background(), grpcReq)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+		cardIds := make([]int, len(grpcRes.CardIds))
+		for i, id := range grpcRes.CardIds {
+    		cardIds[i] = int(id)
+		}
 		
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(GetDueCardsResponse{CardIds: []int{1, 2}})
+		json.NewEncoder(w).Encode(GetDueCardsResponse{
+			CardIds: cardIds,
+		})
 	} else {
 		return
 	}
@@ -112,8 +144,22 @@ func (s *Server) handleCreateTopic(w http.ResponseWriter, r *http.Request) {
 		var topic CreateTopicRequest
 		json.NewDecoder(r.Body).Decode(&topic)
 
+		grpcReq := &pb.CreateTopicRequest{
+            UserId: int32(topic.UserId),
+            TopicId: int32(topic.TopicId),
+			Name: topic.Name,
+        }
+
+		grpcRes, err := s.client.CreateTopic(context.Background(), grpcReq)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(CreateTopicResponse{Success: true})
+		json.NewEncoder(w).Encode(CreateTopicResponse{
+			Success: grpcRes.Success,
+		})
 	} else {
 		return
 	}
