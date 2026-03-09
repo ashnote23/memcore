@@ -1,8 +1,20 @@
 # memcore
 
-A crash-safe spaced repetition engine built in C++, with a Go API layer connected via gRPC.
+A crash-safe spaced repetition engine built in C++, with a Go API layer connected via gRPC — fully containerised with Docker.
 
 This is not a flashcard app. It is a backend storage engine that happens to schedule flashcards — built with the same reasoning you would apply to a production system: write-ahead logging, snapshot recovery, strict architectural boundaries, and deterministic scheduling logic.
+
+---
+
+## Run with Docker
+
+```bash
+git clone https://github.com/yourusername/memcore.git
+cd memcore
+docker compose up
+```
+
+That's it. No dependencies to install.
 
 ---
 
@@ -20,7 +32,7 @@ The goal was to learn how to think about backend systems properly: not just make
 Client (curl / HTTP)
   ↓  HTTP + JSON
 Go API Layer              (port 8080)
-  ↓  gRPC
+  ↓  gRPC (protobuf)
 C++ Engine                (port 50051)
   ↓
 File Storage              (snapshot.bin + review.log)
@@ -154,12 +166,34 @@ Go and C++ stubs are generated from this file — Go never calls C++ in any way 
 
 ---
 
+## Docker
+
+Two containers orchestrated with Docker Compose:
+
+```
+┌─────────────────────┐     gRPC      ┌─────────────────────┐
+│   go-api            │ ────────────→ │   cpp-engine        │
+│   port 8080         │               │   port 50051        │
+└─────────────────────┘               └─────────────────────┘
+
+Volume: ./data → /app/data  (snapshot.bin + review.log persist here)
+```
+
+**Persistence across restarts** — `snapshot.bin` and `review.log` are stored in a volume-mounted `./data` folder on the host. Containers can be destroyed and recreated — card history survives.
+
+**Environment-driven configuration** — `CPP_ENGINE_HOST` controls how Go finds C++. Defaults to `localhost` for local development, set to `cpp-engine` in Docker Compose for container networking.
+
+---
+
 ## Project Structure
 
 ```
 memcore/
 ├── main.cpp                        C++ entry point + simulation
 ├── CMakeLists.txt                  CMake build config
+├── Dockerfile                      C++ engine container
+├── docker-compose.yml              orchestrates both containers
+├── .dockerignore
 ├── proto/
 │   └── flashcards.proto            gRPC service contract
 ├── core/
@@ -168,20 +202,21 @@ memcore/
 │   ├── review_service.h / .cpp     validation + orchestration
 │   ├── grpc_server.cpp             C++ gRPC server implementation
 │   └── persistence/
-│       ├── storage.h / .cpp        snapshot + log implementation
-│   └── proto/                      generated C++ gRPC stubs
+│       └── storage.h / .cpp        snapshot + log implementation
 ├── api/
 │   ├── main.go                     Go HTTP server + gRPC client
+│   ├── Dockerfile                  Go API container
 │   ├── go.mod / go.sum
 │   └── proto/                      generated Go gRPC stubs
+├── data/                           volume mount — persisted files
 └── docs/
-    └── daily_logs/                 13 days of design decisions
-    └──architecture.md                   
+    ├── architecture.md             full system design document
+    └── daily_logs/                 14 days of design decisions
 ```
 
 ---
 
-## Build & Run
+## Build Locally (without Docker)
 
 ### Prerequisites
 - Visual Studio 2022 Build Tools with C++ desktop development
@@ -193,7 +228,7 @@ cd vcpkg
 ./bootstrap-vcpkg.bat
 ./vcpkg.exe install grpc
 ```
-- Go 1.21+
+- Go 1.25+
 - protoc with Go and C++ plugins
 
 ### Build C++ Engine
@@ -228,6 +263,7 @@ Key decisions documented:
 - Why the log has no count header but the snapshot does
 - Why CRC is computed over data fields only, never over itself
 - Why `ReviewService` takes a `Scheduler&` reference instead of owning one
+- Why environment variables replace hardcoded hostnames for Docker
 
 ---
 
@@ -243,6 +279,7 @@ Key decisions documented:
 | C++ gRPC Server | Complete |
 | Go API Layer | Complete |
 | Integration Testing | Complete |
+| Containerisation | Complete |
 
 ---
 
@@ -256,3 +293,4 @@ Key decisions documented:
 - Spaced repetition algorithm implementation and stability analysis
 - Layered C++ architecture: model → scheduler → service → persistence → gRPC
 - Go API layer with gRPC client integration
+- Docker containerisation with volume-backed persistence

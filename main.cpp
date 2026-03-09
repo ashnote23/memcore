@@ -14,7 +14,9 @@ int main() {
 
     ReviewService reviewService(scheduler);
 
-    Storage storage("review.log", "snapshot.bin");
+    std::string snapshotPath = std::getenv("SNAPSHOT_PATH") ? std::getenv("SNAPSHOT_PATH") : "snapshot.bin";
+    std::string logPath = std::getenv("LOG_PATH") ? std::getenv("LOG_PATH") : "review.log";
+    Storage storage(logPath, snapshotPath);
 
     UserId uid = 1;
     TopicId topicId = 100;

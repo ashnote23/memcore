@@ -4,7 +4,7 @@
 
 ## Overview
 
-memcore is a spaced repetition backend engine built as two separate processes — a C++ scheduling engine and a Go HTTP API layer — communicating over gRPC. The system is designed around correctness under failure, strict ownership boundaries, and deterministic scheduling logic.
+memcore is a spaced repetition backend engine built as two separate processes — a C++ scheduling engine and a Go HTTP API layer — communicating over gRPC, fully containerised with Docker. The system is designed around correctness under failure, strict ownership boundaries, and deterministic scheduling logic.
 
 This document covers the full system design: why each layer exists, what it owns, how layers communicate, and what guarantees the system provides.
 
@@ -20,7 +20,7 @@ This document covers the full system design: why each layer exists, what it owns
                        │ HTTP + JSON
                        │ port 8080
 ┌──────────────────────▼──────────────────────────────┐
-│                  Go API Layer                       │
+│               Go API Container                      │
 │                                                     │
 │  POST /review       GET /due-cards                  │
 │  POST /card         POST /topic                     │
@@ -28,11 +28,12 @@ This document covers the full system design: why each layer exists, what it owns
 │  • HTTP routing and JSON parsing                    │
 │  • Request validation                               │
 │  • gRPC client — forwards to C++                    │
+│  • CPP_ENGINE_HOST env var for container routing    │
 └──────────────────────┬──────────────────────────────┘
                        │ gRPC (protobuf)
                        │ port 50051
 ┌──────────────────────▼──────────────────────────────┐
-│                  C++ Engine                         │
+│               C++ Engine Container                  │
 │                                                     │
 │  ┌─────────────────────────────────────────────┐   │
 │  │            ReviewService                    │   │
@@ -46,8 +47,15 @@ This document covers the full system design: why each layer exists, what it owns
 │                     │                               │
 │  ┌──────────────────▼──────────────────────────┐   │
 │  │              Storage                        │   │
-│  │   snapshot.bin + review.log                 │   │
-│  └─────────────────────────────────────────────┘   │
+│  │   /app/data/snapshot.bin                    │   │
+│  │   /app/data/review.log                      │   │
+│  └──────────────────┬──────────────────────────┘   │
+└─────────────────────┼───────────────────────────────┘
+                      │ volume mount
+┌─────────────────────▼───────────────────────────────┐
+│              Host Machine ./data/                   │
+│         snapshot.bin + review.log                   │
+│         (persists across container restarts)        │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -88,7 +96,7 @@ Go has a built-in HTTP server, clean JSON handling, and excellent gRPC client su
 - Request routing
 
 **Why C++ for this layer:**
-C++ provides direct memory control, no garbage collection pauses, and is the natural choice for a performance-sensitive scheduling engine. The layered architecture also makes this a strong C++ backend portfolio piece.
+C++ provides direct memory control, no garbage collection pauses, and is the natural choice for a performance-sensitive scheduling engine.
 
 ---
 
@@ -147,8 +155,6 @@ The due queue is a min-heap ordered by `nextReviewDate`. This gives O(log n) ins
 
 ### Scheduler
 
-Defined in `core/scheduler.h`, implemented in `core/scheduler.cpp`.
-
 Owns all card state. Enforces SM-2 scheduling logic. Exposes a read-only view via `get_users() const` for the persistence layer.
 
 **Key methods:**
@@ -164,8 +170,6 @@ const unordered_map<UserId, User>& get_users() const;
 ---
 
 ### ReviewService
-
-Defined in `core/review_service.h`, implemented in `core/review_service.cpp`.
 
 Sits between the entry point and the scheduler. Validates input before forwarding — invalid ratings, unknown users, unknown cards are all caught here and never reach the scheduler.
 
@@ -189,9 +193,7 @@ public:
 
 ### Storage
 
-Defined in `core/persistence/storage.h`, implemented in `core/persistence/storage.cpp`.
-
-Handles all file I/O. Reads from and writes to two files.
+Handles all file I/O. Reads from and writes to two files. File paths are configurable via environment variables — supports both local development and Docker volume mounts.
 
 ```cpp
 class Storage {
@@ -203,8 +205,6 @@ public:
     void replay_log(Scheduler& scheduler);
 };
 ```
-
-Storage reads state via `scheduler.get_users()` — it never mutates the scheduler directly. On load, it calls `scheduler.create_user()` and `scheduler.add_card()` — the scheduler owns all mutations.
 
 ---
 
@@ -371,11 +371,80 @@ Stubs are generated for both languages:
 
 ---
 
+## Docker Architecture
+
+### Container Design
+
+Two containers, one network:
+
+```
+┌─────────────────────┐     gRPC      ┌─────────────────────┐
+│   go-api            │ ────────────→ │   cpp-engine        │
+│   port 8080         │               │   port 50051        │
+└─────────────────────┘               └─────────────────────┘
+
+Volume: ./data → /app/data
+```
+
+### Container Networking
+
+Each container has its own network namespace — `localhost` inside Go refers to the Go container, not C++. Docker Compose creates an internal DNS where containers find each other by service name:
+
+```
+cpp-engine:50051
+```
+
+### Environment-Driven Host Resolution
+
+```go
+host := os.Getenv("CPP_ENGINE_HOST")
+if host == "" {
+    host = "localhost"  // local development
+}
+// Docker Compose sets CPP_ENGINE_HOST=cpp-engine
+```
+
+One codebase works in both environments — no code changes needed between local and Docker.
+
+### Volume-Backed Persistence
+
+```yaml
+volumes:
+  - ./data:/app/data
+```
+
+`snapshot.bin` and `review.log` live on the host machine, not inside the container. Containers can be destroyed and recreated — data survives.
+
+### Two-Stage Go Build
+
+```dockerfile
+FROM golang:1.25 AS builder   # large image — has compiler
+RUN go build -o api .
+
+FROM debian:bookworm-slim      # small image — just the binary
+COPY --from=builder /app/api .
+```
+
+Final Go image is ~20MB instead of ~800MB.
+
+### Proto Regeneration in C++ Container
+
+Pre-generated stubs from vcpkg are version-specific and incompatible with Ubuntu's system protobuf. Stubs are regenerated inside the container using its own protoc — guarantees version compatibility.
+
+```dockerfile
+RUN protoc --cpp_out=core \
+           --grpc_out=core \
+           --plugin=protoc-gen-grpc=/usr/bin/grpc_cpp_plugin \
+           proto/flashcards.proto
+```
+
+---
+
 ## Startup Sequence
 
 ```
 1. Create Scheduler
-2. Create Storage
+2. Create Storage (paths from environment variables)
 3. if snapshot exists:
        load_snapshot(scheduler)   → reconstruct card state
        replay_log(scheduler)      → reapply events since checkpoint
@@ -412,6 +481,10 @@ If `ReviewService` owned its own `Scheduler` instance, the `Storage` layer and `
 
 If the log is not cleared, events already baked into the snapshot will be replayed again on the next startup — double-applying reviews and causing scheduling state to drift forward incorrectly.
 
+### Why environment variables for file paths and host names?
+
+Hardcoded paths and hostnames break when moving between environments — local development, Docker, or future cloud deployment. Environment variables make the system configurable without code changes.
+
 ---
 
 ## System Guarantees
@@ -424,3 +497,5 @@ If the log is not cleared, events already baked into the snapshot will be replay
 | No scheduling bypass | gRPC contract enforced — Go cannot call C++ directly |
 | Deterministic scheduling | SM-2 is purely functional given the same inputs |
 | No state duplication | Single Scheduler instance shared via reference |
+| Persistence across restarts | Volume-mounted data directory on host machine |
+| Environment portability | All paths and hostnames configurable via env vars |

@@ -1,6 +1,8 @@
 build/
+data/
 *.exe
 *.obj
 snapshot.bin
 review.log
-.DS_Store
+.git/
+CMakeCache.txt

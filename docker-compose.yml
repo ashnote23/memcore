@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  cpp-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - SNAPSHOT_PATH=/app/data/snapshot.bin
+      - LOG_PATH=/app/data/review.log
+
+  go-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - CPP_ENGINE_HOST=cpp-engine
+    depends_on:
+      - cpp-engine

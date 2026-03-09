@@ -3,11 +3,14 @@ project(memcore)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Tell CMake where vcpkg packages are
-set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake")
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GRPC REQUIRED grpc++)
+pkg_check_modules(PROTOBUF REQUIRED protobuf)
 
-find_package(gRPC CONFIG REQUIRED)
-find_package(protobuf CONFIG REQUIRED)
+# Find grpc headers explicitly
+find_path(GRPCPP_INCLUDE_DIR grpcpp/grpcpp.h
+    PATHS /usr/include /usr/local/include
+)
 
 add_executable(memcore
     main.cpp
@@ -22,10 +25,12 @@ add_executable(memcore
 target_include_directories(memcore PRIVATE
     core
     core/proto
-    C:/vcpkg/installed/x64-windows/include
+    ${GRPCPP_INCLUDE_DIR}
+    ${GRPC_INCLUDE_DIRS}
+    ${PROTOBUF_INCLUDE_DIRS}
 )
 
 target_link_libraries(memcore PRIVATE
-    gRPC::grpc++
-    protobuf::libprotobuf
+    ${GRPC_LIBRARIES}
+    ${PROTOBUF_LIBRARIES}
 )

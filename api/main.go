@@ -5,6 +5,7 @@ import (
     "net/http"
 	"log"
 	"context"
+	"os"
     "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	pb "memcore/api/proto"
@@ -167,7 +168,11 @@ func (s *Server) handleCreateTopic(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	host := os.Getenv("CPP_ENGINE_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	conn, err := grpc.Dial(host+":50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
     if err != nil {
         log.Fatalf("Failed to connect: %v", err)
     }
