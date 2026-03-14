@@ -51,10 +51,10 @@ This is the same as local development — Go reaches C++ on `localhost:50051` by
 minikube runs its own Docker daemon. Images built locally must be explicitly loaded:
 
 ```bash
-minikube image load memcore-c++:latest
+minikube image load memcore-cpp-engine:latest
 minikube image ls | grep memcore
-# docker.io/library/memcore-c++:latest
-# docker.io/library/memcore-go:latest
+# docker.io/library/memcore-cpp-engine:latest
+# docker.io/library/memcore-go-api:latest
 ```
 
 ### 2. Updated Pod Manifest
@@ -71,13 +71,13 @@ metadata:
 spec:
   containers:
     - name: cpp-engine
-      image: memcore-c++:latest
+      image: memcore-cpp-engien:latest
       imagePullPolicy: Never
       ports:
         - containerPort: 50051
 
     - name: go-api
-      image: memcore-go:latest
+      image: memcore-go-api:latest
       imagePullPolicy: Never
       ports:
         - containerPort: 8080
