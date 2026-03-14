@@ -4,7 +4,7 @@
 
 ## Overview
 
-memcore is a spaced repetition backend engine built as two separate processes — a C++ scheduling engine and a Go HTTP API layer — communicating over gRPC, fully containerised with Docker. The system is designed around correctness under failure, strict ownership boundaries, and deterministic scheduling logic.
+memcore is a spaced repetition backend engine built as two separate processes — a C++ scheduling engine and a Go HTTP API layer — communicating over gRPC, fully containerised with Docker and deployable on Kubernetes. The system is designed around correctness under failure, strict ownership boundaries, and deterministic scheduling logic.
 
 This document covers the full system design: why each layer exists, what it owns, how layers communicate, and what guarantees the system provides.
 
@@ -440,6 +440,81 @@ RUN protoc --cpp_out=core \
 
 ---
 
+## Kubernetes Architecture
+
+### Pod Design
+
+Both containers run inside a single Pod. Containers in the same Pod share the same network namespace — they communicate over `localhost`, not over a Kubernetes Service.
+
+```
+┌──────────────────────────────────────────────────┐
+│                  memcore Pod                     │
+│                                                  │
+│  ┌───────────────┐   gRPC    ┌────────────────┐  │
+│  │    go-api     │──────────▶│   cpp-engine   │  │
+│  │   port 8080   │ localhost │   port 50051   │  │
+│  └───────────────┘           └────────────────┘  │
+│                                                  │
+│  Shared network namespace                        │
+│  CPP_ENGINE_HOST=localhost                       │
+└──────────────────────────────────────────────────┘
+```
+
+### Why One Pod and Not Two
+
+Splitting Go and C++ into separate Pods would require a ClusterIP Service for intra-pod gRPC communication — adding DNS resolution and a network hop where none is needed. The architectural boundary between Go and C++ is a logical boundary, not a deployment boundary. One Pod expresses that correctly.
+
+### Key Difference from Docker Compose
+
+| Environment | How Go finds C++ |
+|---|---|
+| Local dev | `localhost:50051` (default) |
+| Docker Compose | `cpp-engine:50051` (service name DNS) |
+| Kubernetes Pod | `localhost:50051` (shared network namespace) |
+
+The `CPP_ENGINE_HOST` environment variable handles all three cases without code changes.
+
+### Manifest
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memcore
+  labels:
+    app: memcore
+spec:
+  containers:
+    - name: cpp-engine
+      image: memcore-c++:latest
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 50051
+
+    - name: go-api
+      image: memcore-go:latest
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 8080
+      env:
+        - name: CPP_ENGINE_HOST
+          value: "localhost"
+```
+
+### End-to-End Verified on Kubernetes
+
+```bash
+kubectl apply -f k8s/memcore-pod.yaml
+kubectl port-forward pod/memcore 8080:8080
+
+POST /topic     → {"success":true}
+POST /card      → {"success":true}
+GET  /due-cards → {"card_ids":[1]}
+POST /review    → {"next_review_date":1}
+```
+
+---
+
 ## Startup Sequence
 
 ```
@@ -483,7 +558,11 @@ If the log is not cleared, events already baked into the snapshot will be replay
 
 ### Why environment variables for file paths and host names?
 
-Hardcoded paths and hostnames break when moving between environments — local development, Docker, or future cloud deployment. Environment variables make the system configurable without code changes.
+Hardcoded paths and hostnames break when moving between environments — local development, Docker, or Kubernetes. Environment variables make the system configurable without code changes.
+
+### Why run Go and C++ in the same Kubernetes Pod?
+
+Containers in the same Pod share a network namespace — Go reaches C++ on `localhost:50051` with no Service or DNS overhead. The gRPC boundary between Go and C++ is a logical boundary enforced by the contract, not a network boundary requiring separate Pods. Splitting them would add infrastructure complexity that serves no architectural purpose at this stage.
 
 ---
 
@@ -499,3 +578,4 @@ Hardcoded paths and hostnames break when moving between environments — local d
 | No state duplication | Single Scheduler instance shared via reference |
 | Persistence across restarts | Volume-mounted data directory on host machine |
 | Environment portability | All paths and hostnames configurable via env vars |
+| Kubernetes portability | Single Pod manifest — runs on any K8s cluster with local images loaded |

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memcore
+  labels:
+    app: memcore
+    tier: api
+spec:
+  containers:
+    - name: cpp-engine
+      image: memcore-cpp-engine:latest
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 50051
+
+    - name: go-api
+      image: memcore-go-api:latest
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 8080
+      env:
+        - name: CPP-ENGINE-HOST
+          value: "localhost"

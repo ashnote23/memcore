@@ -1,6 +1,6 @@
 # memcore
 
-A crash-safe spaced repetition engine built in C++, with a Go API layer connected via gRPC — fully containerised with Docker.
+A crash-safe spaced repetition engine built in C++, with a Go API layer connected via gRPC — fully containerised with Docker and deployable on Kubernetes.
 
 This is not a flashcard app. It is a backend storage engine that happens to schedule flashcards — built with the same reasoning you would apply to a production system: write-ahead logging, snapshot recovery, strict architectural boundaries, and deterministic scheduling logic.
 
@@ -9,12 +9,23 @@ This is not a flashcard app. It is a backend storage engine that happens to sche
 ## Run with Docker
 
 ```bash
-git clone https://github.com/yourusername/memcore.git
+git clone https://github.com/ashnote23/memcore.git
 cd memcore
 docker compose up
 ```
 
 That's it. No dependencies to install.
+
+---
+
+## Run on Kubernetes
+
+```bash
+kubectl apply -f k8s/memcore-pod.yaml
+kubectl port-forward pod/memcore 8080:8080
+```
+
+Both containers (Go API + C++ engine) run as a single multi-container Pod sharing the same network namespace.
 
 ---
 
@@ -185,6 +196,69 @@ Volume: ./data → /app/data  (snapshot.bin + review.log persist here)
 
 ---
 
+## Kubernetes
+
+Both containers run as a single multi-container Pod. They share the same network namespace — Go reaches C++ on `localhost:50051`, the same as local development.
+
+```
+┌──────────────────────────────────────────┐
+│              memcore Pod                 │
+│                                          │
+│  ┌─────────────┐      ┌───────────────┐  │
+│  │   go-api    │─────▶│  cpp-engine   │  │
+│  │  port 8080  │ gRPC │  port 50051   │  │
+│  └─────────────┘      └───────────────┘  │
+│                                          │
+│  Shared network namespace                │
+│  CPP_ENGINE_HOST=localhost               │
+└──────────────────────────────────────────┘
+```
+
+**Why one Pod and not two:**
+Containers in the same Pod share `localhost`. Go connects to C++ on `localhost:50051` — no Service or DNS resolution needed. Splitting them into separate Pods would require a ClusterIP Service between them, adding unnecessary complexity at this stage.
+
+**Key difference from Docker Compose:**
+Docker Compose uses service names (`cpp-engine:50051`) for container discovery. Kubernetes Pods use `localhost` for intra-pod communication. The `CPP_ENGINE_HOST` environment variable handles both — `cpp-engine` in Docker Compose, `localhost` in Kubernetes.
+
+### Manifest
+
+```yaml
+# k8s/memcore-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memcore
+  labels:
+    app: memcore
+spec:
+  containers:
+    - name: cpp-engine
+      image: memcore-c++:latest
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 50051
+
+    - name: go-api
+      image: memcore-go:latest
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 8080
+      env:
+        - name: CPP_ENGINE_HOST
+          value: "localhost"
+```
+
+### End-to-End Verified on Kubernetes
+
+```bash
+POST /topic     → {"success":true}
+POST /card      → {"success":true}
+GET  /due-cards → {"card_ids":[1]}
+POST /review    → {"next_review_date":1}
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -208,10 +282,12 @@ memcore/
 │   ├── Dockerfile                  Go API container
 │   ├── go.mod / go.sum
 │   └── proto/                      generated Go gRPC stubs
+├── k8s/
+│   └── memcore-pod.yaml            Kubernetes multi-container Pod manifest
 ├── data/                           volume mount — persisted files
 └── docs/
     ├── architecture.md             full system design document
-    └── daily_logs/                 14 days of design decisions
+    └── daily_logs/                 engineering log — design decisions
 ```
 
 ---
@@ -264,6 +340,7 @@ Key decisions documented:
 - Why CRC is computed over data fields only, never over itself
 - Why `ReviewService` takes a `Scheduler&` reference instead of owning one
 - Why environment variables replace hardcoded hostnames for Docker
+- Why Go and C++ run in the same Kubernetes Pod
 
 ---
 
@@ -279,7 +356,8 @@ Key decisions documented:
 | C++ gRPC Server | Complete |
 | Go API Layer | Complete |
 | Integration Testing | Complete |
-| Containerisation | Complete |
+| Containerisation (Docker) | Complete |
+| Kubernetes Deployment | Complete |
 
 ---
 
@@ -294,3 +372,4 @@ Key decisions documented:
 - Layered C++ architecture: model → scheduler → service → persistence → gRPC
 - Go API layer with gRPC client integration
 - Docker containerisation with volume-backed persistence
+- Kubernetes multi-container Pod deployment with shared network namespace
