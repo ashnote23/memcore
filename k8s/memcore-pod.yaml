@@ -2,9 +2,11 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: memcore
+  namespace: memcore
   labels:
     app: memcore
-    tier: api
+    tier: backend
+    component: engine
 spec:
   containers:
     - name: cpp-engine
