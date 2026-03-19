@@ -20,6 +20,8 @@ spec:
       imagePullPolicy: Never
       ports:
         - containerPort: 8080
-      env:
-        - name: CPP-ENGINE-HOST
-          value: "localhost"
+      envFrom:
+        - configMapRef:
+            name: memcore-config
+        - secretRef:
+            name: memcore-secret
