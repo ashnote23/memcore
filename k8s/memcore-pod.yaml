@@ -8,12 +8,24 @@ metadata:
     tier: backend
     component: engine
 spec:
+  volumes:
+    - name: memcore-storage
+      persistentVolumeClaim:
+        claimName: memcore-data
   containers:
     - name: cpp-engine
       image: memcore-cpp-engine:latest
       imagePullPolicy: Never
       ports:
         - containerPort: 50051
+      volumeMounts:
+        - name: memcore-storage
+          mountPath: /app/data
+      envFrom:
+        - configMapRef:
+            name: memcore-config
+        - secretRef:
+            name: memcore-secret
 
     - name: go-api
       image: memcore-go-api:latest
