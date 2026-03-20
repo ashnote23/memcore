@@ -37,3 +37,17 @@ spec:
             name: memcore-config
         - secretRef:
             name: memcore-secret
+      livenessProbe:
+        httpGet:
+          path: /due-cards
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 15
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          path: /due-cards
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        failureThreshold: 3
