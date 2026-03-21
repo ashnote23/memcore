@@ -177,4 +177,4 @@ k8s/
 
 Probes make explicit something that was always implicit: the difference between a process running and an application being healthy. The Go container starting does not mean it is ready — it means the binary is executing. Readiness is a higher bar: the HTTP server is up, the gRPC connection to C++ is established, and the application can serve real traffic.
 
-The `initialDelaySeconds` on the readiness probe encodes a real architectural constraint — Go depends on C++ and needs time to connect. This is the same dependency expressed in Docker Compose via `depends_on`. In Kubernetes there is no `depends_on` for Pods — probes are how you express startup ordering at the application level.
+The `initialDelaySeconds` on the readiness probe encodes a real architectural constraint — Go depends on C++ and needs time to connect. This is the same dependency expressed in Docker Compose vi a `depends_on`. In Kubernetes there is no `depends_on` for Pods — probes are how you express startup ordering at the application level.

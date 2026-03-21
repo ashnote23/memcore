@@ -18,6 +18,13 @@ spec:
       imagePullPolicy: Never
       ports:
         - containerPort: 50051
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "250m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
       volumeMounts:
         - name: memcore-storage
           mountPath: /app/data
@@ -32,6 +39,13 @@ spec:
       imagePullPolicy: Never
       ports:
         - containerPort: 8080
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "125m"
+        limits:
+          memory: "128Mi"
+          cpu: "250m"
       envFrom:
         - configMapRef:
             name: memcore-config
