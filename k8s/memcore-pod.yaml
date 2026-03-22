@@ -1,67 +1,76 @@
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: memcore
   namespace: memcore
   labels:
     app: memcore
-    tier: backend
-    component: engine
 spec:
-  volumes:
-    - name: memcore-storage
-      persistentVolumeClaim:
-        claimName: memcore-data
-  containers:
-    - name: cpp-engine
-      image: memcore-cpp-engine:latest
-      imagePullPolicy: Never
-      ports:
-        - containerPort: 50051
-      resources:
-        requests:
-          memory: "128Mi"
-          cpu: "250m"
-        limits:
-          memory: "256Mi"
-          cpu: "500m"
-      volumeMounts:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memcore
+  template:
+    metadata:
+      labels:
+        app: memcore
+        tier: backend
+        component: engine
+    spec:
+      volumes:
         - name: memcore-storage
-          mountPath: /app/data
-      envFrom:
-        - configMapRef:
-            name: memcore-config
-        - secretRef:
-            name: memcore-secret
+          persistentVolumeClaim:
+            claimName: memcore-data
+      containers:
+        - name: cpp-engine
+          image: memcore-cpp-engine:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 50051
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: memcore-storage
+              mountPath: /app/data
+          envFrom:
+            - configMapRef:
+                name: memcore-config
+            - secretRef:
+                name: memcore-secret
 
-    - name: go-api
-      image: memcore-go-api:latest
-      imagePullPolicy: Never
-      ports:
-        - containerPort: 8080
-      resources:
-        requests:
-          memory: "64Mi"
-          cpu: "125m"
-        limits:
-          memory: "128Mi"
-          cpu: "250m"
-      envFrom:
-        - configMapRef:
-            name: memcore-config
-        - secretRef:
-            name: memcore-secret
-      livenessProbe:
-        httpGet:
-          path: /due-cards
-          port: 8080
-        initialDelaySeconds: 10
-        periodSeconds: 15
-        failureThreshold: 3
-      readinessProbe:
-        httpGet:
-          path: /due-cards
-          port: 8080
-        initialDelaySeconds: 5
-        periodSeconds: 10
-        failureThreshold: 3
+        - name: go-api
+          image: memcore-go-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "125m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+          envFrom:
+            - configMapRef:
+                name: memcore-config
+            - secretRef:
+                name: memcore-secret
+          livenessProbe:
+            httpGet:
+              path: /due-cards
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /due-cards
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
