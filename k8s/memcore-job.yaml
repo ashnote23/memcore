@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: memcore-snapshot-check
+  namespace: memcore
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: memcore-storage
+          persistentVolumeClaim:
+            claimName: memcore-data
+      containers:
+        - name: snapshot-check
+          image: busybox
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Checking memcore storage..."
+              ls /app/data
+              echo "Snapshot check complete!"
+          volumeMounts:
+            - name: memcore-storage
+              mountPath: /app/data
